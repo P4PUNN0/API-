@@ -197,6 +197,154 @@ Calcula `c = a + b`.
 
 ---
 
+## 📸 Capturas de Pruebas de Carga (Load Testing con Postman)
+
+Se realizaron múltiples pruebas de carga utilizando **Postman Performance Testing** para evaluar el comportamiento de la API bajo distintos escenarios de estrés. A continuación se documentan los resultados:
+
+---
+
+### 🔹 Prueba #1 — Perfil Fijo, 5 VUs (Línea Base)
+
+![Prueba de carga #1 - Línea base con 5 usuarios virtuales](CAPTURAS/swappy-20261111_183224.png)
+
+**Configuración:** 5 usuarios virtuales (VUs) | Perfil fijo | ~2 minutos
+
+**Resultados clave:**
+- **4,628 peticiones totales** a ~9.56 req/s por endpoint
+- **0% de errores** en los 4 endpoints
+- `GET /health`: 6 ms promedio (P99: 42 ms) — respuesta casi instantánea
+- `POST /login`: 6 ms promedio (P99: 37 ms) — autenticación eficiente
+- `POST /sum`: 6 ms promedio (P99: 42 ms) — cálculo rápido
+- `GET /catfact`: 1,415 ms promedio (P99: 5,575 ms) — latencia esperada por la dependencia de API externa
+
+> ✅ **Conclusión:** La API opera de forma estable con carga baja. La latencia del endpoint `/catfact` es inherente a la llamada HTTP externa a `catfact.ninja`.
+
+---
+
+### 🔹 Prueba #2 — Perfil Fijo, 20 VUs (Carga Media)
+
+![Prueba de carga #2 - 20 usuarios virtuales, perfil fijo](CAPTURAS/swappy-20261111_183842.png)
+
+**Configuración:** 20 usuarios virtuales | Perfil fijo | 5 minutos
+
+**Resultados clave:**
+- **23,580 peticiones totales** a 78.52 req/s
+- **0% de errores** y **0% de fallos** en todos los endpoints
+- Tiempo de respuesta promedio: **242 ms** (P90: 782 ms, P99: 3,050 ms)
+- `GET /health`: 9 ms promedio — estable bajo presión
+- `GET /catfact`: 927 ms promedio — el fallback local se activa ante rate limiting
+- `POST /sum` y `POST /login`: 27 ms y 8 ms promedio respectivamente
+- **Peak CPU: 52.2%** | **Peak Memory: 64.0%** — recursos bajo control
+
+> ✅ **Conclusión:** La API escala correctamente a 20 VUs. El mecanismo de **Graceful Degradation** del endpoint `/catfact` funciona correctamente activando el fallback local cuando la API externa limita las peticiones.
+
+---
+
+### 🔹 Prueba #3 — Perfil Spike, 20 VUs (Picos de Carga)
+
+![Prueba de carga #3 - Perfil spike con picos repentinos](CAPTURAS/swappy-20261111_184136.png)
+
+**Configuración:** 20 usuarios virtuales | Perfil Spike | 2 minutos
+
+**Resultados clave:**
+- **980 peticiones totales** a 8.15 req/s
+- **0% de errores** — la API absorbe los picos sin fallar
+- Tiempo de respuesta promedio: **425 ms** (P90: 1,553 ms, P99: 4,449 ms)
+- Se observa un pico de latencia a las 18:40:08 (~5,445 ms) coincidiendo con el spike de usuarios
+- `GET /catfact` alcanza hasta 7,175 ms en pico — el timeout de 5s se activa y el fallback responde
+- **Peak CPU: 30.0%** | **Peak Memory: 60.1%**
+
+> ✅ **Conclusión:** El perfil Spike confirma que la API maneja ráfagas repentinas de tráfico sin errores. La degradación elegante protege la disponibilidad del servicio.
+
+---
+
+### 🔹 Prueba #4 — Perfil Spike, 20 VUs, 5 minutos (Spike Sostenido)
+
+![Prueba de carga #4 - Spike sostenido durante 5 minutos](CAPTURAS/swappy-20261111_184707.png)
+
+**Configuración:** 20 usuarios virtuales | Perfil Spike | 5 minutos
+
+**Resultados clave:**
+- **5,118 peticiones totales** a 17.04 req/s
+- **0% de errores** | **0% de fallos**
+- Tiempo de respuesta promedio: **212 ms** (P90: 647 ms, P95: 936 ms)
+- Comparación con ejecución anterior: ⬇️ Avg. response time 12.4% | ⬇️ P95 13.7%
+- `GET /catfact`: 827 ms promedio con Max de 5,595 ms — se estabiliza con fallback
+- **Peak CPU: 44.7%** | **Peak Memory: 62.4%**
+
+> ✅ **Conclusión:** En una prueba Spike más larga, la API mejora su rendimiento conforme se estabiliza. Los tiempos de respuesta bajan comparados con la ejecución anterior, demostrando consistencia.
+
+---
+
+### 🔹 Prueba #5 — Perfil Fijo, 20 VUs, 7 minutos (Carga Sostenida Máxima)
+
+![Prueba de carga #5 - Carga máxima sostenida 7 minutos](CAPTURAS/swappy-20261111_185429.png)
+
+**Configuración:** 20 usuarios virtuales | Perfil fijo | 7 minutos
+
+**Resultados clave:**
+- **35,007 peticiones totales** a **83.28 req/s** — máximo throughput alcanzado
+- **0% de errores** | **0% de fallos**
+- Tiempo de respuesta promedio: **229 ms** (P90: 715 ms, P99: 3,102 ms)
+- Comparación con ejecución anterior: ⬆️ Requests/second **388.7%** de mejora
+- `GET /health`: 7 ms promedio | `POST /login`: mantiene estabilidad
+- **Peak CPU: 41.8%** | **Peak Memory: 62.0%**
+
+> ✅ **Conclusión:** La prueba de mayor duración y carga confirma que la API es **robusta y escalable**. Con 35,000+ peticiones procesadas sin un solo error, el sistema demuestra estar listo para producción académica.
+
+---
+
+### 🔹 Prueba #6 — API MVC Original (http.server), 20 VUs, 5 minutos
+
+![Prueba de carga #6 - API original con http.server de Python](CAPTURAS/WhatsApp%20Image%202026-11-11%20at%2018.42.48.jpeg)
+
+**Configuración:** 20 usuarios virtuales | Perfil fijo | 5 minutos | API MVC original (http.server)
+
+**Resultados clave:**
+- **72,040 peticiones totales** a **148.15 req/s**
+- **Error %: 62.73%** — tasa de errores muy alta
+- `GET New Request` y `GET Health`: **100% de errores** (respuestas no conformes al esquema esperado)
+- `POST /login` y `POST /sum`: **~6.8% de errores**
+- Tiempo de respuesta promedio: **8 ms** (muy rápido pero con errores)
+- **Peak CPU: 90.5%** | **Peak Memory: 93.0%** — recursos al límite
+
+> ⚠️ **Conclusión:** La API original basada en `http.server` es rápida en respuesta bruta pero **no maneja correctamente la carga**: alta tasa de errores, CPU al 90% y memoria al 93%. Esto justifica la migración a FastAPI.
+
+---
+
+### 🔹 Prueba #7 — API MVC Original (http.server), 20 VUs, 7 minutos
+
+![Prueba de carga #7 - API original bajo estrés prolongado](CAPTURAS/WhatsApp%20Image%202026-11-11%20at%2018.49.46.jpeg)
+
+**Configuración:** 20 usuarios virtuales | Perfil fijo | 7 minutos | API MVC original (http.server)
+
+**Resultados clave:**
+- **12,420 peticiones totales** a **100.87 req/s**
+- **Error %: 60.09%** — errores persistentes
+- Endpoints GET: **100% de errores**
+- Tiempo de respuesta promedio: **18 ms**
+- **Peak CPU: 99.2%** | **Peak Memory: 94.7%** — sistema casi colapsado
+
+> ⚠️ **Conclusión:** Bajo estrés prolongado, la API original consume casi el **100% del CPU** y **95% de memoria**, confirmando que `http.server` de Python no es adecuado para cargas de producción. La versión con FastAPI demostró ser significativamente más estable y eficiente.
+
+---
+
+### 📊 Tabla Comparativa: FastAPI vs http.server
+
+| Métrica | FastAPI (Prueba #5) | http.server (Prueba #7) |
+|---------|:-------------------:|:-----------------------:|
+| Total de peticiones | 35,007 | 12,420 |
+| Requests/segundo | 83.28 | 100.87 |
+| Error % | **0.00%** | **60.09%** |
+| Failure % | **0.00%** | 0.00% |
+| Avg. Response Time | 229 ms | 18 ms |
+| Peak CPU % | **41.8%** | **99.2%** |
+| Peak Memory % | **62.0%** | **94.7%** |
+
+> 💡 **Veredicto:** Aunque `http.server` tiene menor latencia bruta, **FastAPI gana en confiabilidad, eficiencia de recursos y cero errores bajo carga**. La arquitectura asíncrona de FastAPI con uvicorn es la elección correcta para aplicaciones que requieren resiliencia.
+
+---
+
 ## 🛡️ Auditoría de Seguridad con Agente IA
 
 Esta API fue auditada automáticamente por un **Agente de IA especializado en ciberseguridad** que realizó análisis de código estático y pruebas dinámicas.
